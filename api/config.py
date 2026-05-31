@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     redis_url:str="redis://localhost:6379/0"
     llm_api_key:str
     debug: bool =False
+    app_name: str = "My API"
 
     model_config= SettingsConfigDict(
         env_file=".env",
