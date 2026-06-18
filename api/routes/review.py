@@ -1,75 +1,51 @@
-from enum import Enum
-from typing import Optional 
-from pydantic import BaseModel,Field, model_validator
+import uuid
+from fastapi import APIRouter
 
-class FindingType(str,Enum):
-    BUG= "bug"
-    SECURITY = "security"
-    STYLE = "style"
-    SUGGESTION = "suggestion"
+from api.models.review import ReviewRequest, ReviewResponse, JobStatus
+from workers.tasks import run_review
 
-class Severity(str,Enum):
-    CRITICAL ="critical"
-    HIGH ="high"
-    MEDIUM ="medium"
-    LOW ="low"
+from celery.result import AsyncResult
+from workers.celery_app import celery_app
+from api.models.review import ReviewResult
 
-class FindingSource(str,Enum):
-    RUFF= "ruff"
-    BANDIT ="bandit"
-    SEMGREP = "semgrep"
-    LLM = "llm"
+router=APIRouter(prefix="/review",tags=["review"])
 
-class JobStatus(str ,Enum):
-    QUEUED ="queued"
-    RUNNING ="running"
-    COMPLETE = "complete"
-    FAILED = "failed"
+@router.post("",response_model=ReviewResponse,status_code=202)
 
-#shape produced by every worker
-class Finding(BaseModel):
-    type :FindingType
-    severity:Severity
-    file :str
-    line: Optional[int]=None
-    message :str
-    suggestion :Optional[str] =None
-    source :FindingSource
+async def submit_review(payload:ReviewRequest)-> ReviewResponse:
+    job_id =str(uuid.uuid4())
+    run_review.apply_async(
+        kwargs={
+            "job_id":job_id,
+            "diff":payload.diff,
+            "content":payload.content,
+            "filename":payload.filename,
+            "repo":payload.repo,
+            "commit_sha":payload.commit_sha,
+        },
+        task_id=job_id,
+    )
+    return ReviewResponse(job_id=job_id)
 
-#request shape
+@router.get("/{job_id}",response_model=ReviewResult)
 
-class ReviewRequest(BaseModel):
-    diff:Optional[str]=Field(None,description="Unified diff string")
-    content: Optional[str] =Field(None, description ="Full file content")
-    filename:Optional[str] =None
-    repo :Optional [str] =None        #"owner/repo"
-    commit_sha:Optional[str] =None    # for idemptoency later
-
-
-    @model_validator(mode="after")
-    def must_have_diff_or_content(self) -> "ReviewRequest":
-        if not self.diff and not self.content:
-            raise ValueError("Provide either 'diff' or 'content'.")
-        return self
-
-
-#immediate returned responces after queing
-class ReviewResponse(BaseModel):
-    job_id :str
-    status :JobStatus =JobStatus.QUEUED
-    message: str ="Review queued."
-
-#full result returned when polling GET /review / {job_id}
-
-class ReviewREsult(BaseModel):
-    job_id :str
-    status:JobStatus
-    findings: list[Finding]=[]
-    summary :dict [str,int] ={}     #{"total":5,"high":2, ...}
-    error :Optional[str]=None    
-
-
-#Two separate response models because they serve different purposes. 
-# ReviewResponse is lightweight — you return it in milliseconds. 
-# ReviewResult carries the full payload and may be empty until the job completes.
-     
+async def get_review(job_id:str)->ReviewResult:
+    result =AsyncResult(job_id,app=celery_app)
+    
+    if result.state=="PENDING":
+        return ReviewResult(job_id=job_id,status=JobStatus.QUEUED)
+    
+    if result.state=="STARTED":
+        return ReviewResult(job_id=job_id,status=JobStatus.RUNNING)
+    
+    if result.state=="FAILURE":
+        return ReviewResult(job_id=job_id,status=JobStatus.FAILED,error=str(result.result))
+    
+    if result.state=="SUCCESS":
+        data=result.result or {}
+        return ReviewResult(
+            job_id=job_id,
+            status=JobStatus.COMPLETE,
+            findings=data.get("findings",[]),
+            summary=data.get("summary",{}),
+        )
