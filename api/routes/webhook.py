@@ -1,29 +1,77 @@
-from typing import Optional
-from pydantic import BaseModel
+import hashlib
+import hmac
+from fastapi import HTTPException
 
-class GitHubRef(BaseModel):
-    sha: str
-    ref: str               #branch name     
+import uuid
+import structlog
+from fastapi import APIRouter,Header,Request
+from api.models.webhook import PullRequestEvent, SUPPORTED_PR_ACTIONS
+from api.config import settings
+from workers.tasks import run_review
 
-class GitHubPullRequest (BaseModel):
-    number:int
-    head:GitHubRef
-    base:GitHubRef
-    diff_url:str
+def verify_github_signature(payload:bytes,sig_header:str | None)->None:
+    if not sig_header:
+        raise HTTPException(status_code=401,detail="Missing signature header.")
+    
+    if not sig_header.startswith("sha256="):
+        raise HTTPException(status_code=401,detail="Malformed signature.")
+    
+    expected=hmac.new(
+        settings.github_webhook_secret.encode(),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
 
-class GitHubRepository(BaseModel):
-    full_name:str                      #"owner/repo"
-    default_branch:str
+    received =sig_header[len("sha256="):]
+    if not hmac.compare_digest(expected,received):
+        raise HTTPException(status_code=401, detail="Invalid signature.")
+    
 
-class GitHubInstallation(BaseModel):
-    id:int
+logger=structlog.get_logger()
+router =APIRouter(prefix="/webhook",tags=["webhook"])
 
-class PullRequestEvent(BaseModel):
-    action:str
-    number:int
-    pull_request:GitHubPullRequest
-    repository:GitHubRepository
-    installation:Optional[GitHubInstallation]=None
+@router.post("/github",status_code=202)
 
-#used in the webhook route to filter
-SUPPORTED_PR_ACTIONS={"opened","synchronize","reopened"}
+async def github_webhook(
+    request:Request,
+    x_github_event: str | None=Header(None),
+    x_hub_signature_256: str | None=Header(None),
+    x_github_delivery: str | None=Header(None),)->dict:
+
+    raw_body=await request.body()
+    #step 1 - verify before anything else
+
+    log =logger.bind(event=x_github_event,delivery=x_github_delivery)
+
+    #step 2 - filter event type
+    if x_github_event!=  "pull_request":
+        log.info("webhook.ignored",reason="unsupported event")
+        return {"status":"ignored","reason":f"event'{x_github_event}' not handled"}
+    
+    #step 3 - parse payload
+    try:
+        event=PullRequestEvent.model_validate_json(raw_body)
+    except Exception as exc:
+        log.warning("webhook.parse_error",error=str(exc))
+        raise HTTPException(status_code=422,detail="Could not parase payload.")
+    
+    #step 4 - filter PR action
+    if event.action not in SUPPORTED_PR_ACTIONS:
+        log.info("webhook.ignored",reason=f"action'{event.action}'skipped")
+        return {"status":"ignored","reason":f"action '{event.action}' skipped"}
+    
+    #step 5 - queue the job
+    job_id=str(uuid.uuid4())
+    run_review.apply_async(
+        kwargs={
+            "job_id":job_id,
+            "diff_url":event.pull_request.diff_url,
+            "repo":event.repository.full_name,
+            "commit_sha":event.pull_request.head.sha,
+            "pr_number":event.number,  
+        },
+        task_id=job_id,
+    )
+    log.info("webhook.queued",job_id=job_id,repo=event.repository.full_name)
+    return  {"status":"queued","job_id":job_id}
+
