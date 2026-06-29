@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     github_webhook_secret:str
     redis_url:str="redis://localhost:6379/0"
     llm_api_key:str
+    llm_model: str = "gemini-2.0-flash"
     debug: bool =False
     app_name: str = "My API"
 

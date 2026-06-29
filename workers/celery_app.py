@@ -15,3 +15,5 @@ celery_app.conf.update(
         "workers.tasks.run_review":{"queue":"parse"},
     },
     )
+
+celery_app.autodiscover_tasks(["workers"])

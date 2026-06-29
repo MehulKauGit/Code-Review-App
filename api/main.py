@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from api.config import settings
 from api.routes import review,webhook
 def _configure_logging() -> None:
-    app.include_router(webhook.router)
     structlog.configure()
 
 @asynccontextmanager
