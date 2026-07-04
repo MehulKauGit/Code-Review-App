@@ -4,6 +4,7 @@ from workers.parser import parse_diff
 from workers.celery_app import celery_app
 from workers.static import run_ruff , run_bandit, run_semgrep
 from workers.aggregator import aggregate_findings
+from workers.llm import run_llm_review  
 
 def fetch_diff(diff_url:str)-> str:
     response=httpx.get(diff_url,timeout=10.0)
@@ -48,6 +49,8 @@ def run_review(
          bandit_findings += run_bandit(file["filename"], file["content"], file["changed_lines"])
          semgrep_findings += run_semgrep(file["filename"], file["content"], file["changed_lines"])
 
+    llm_findings=run_llm_review(parsed_files)
+    
     result = aggregate_findings(ruff_findings, bandit_findings, semgrep_findings)
     return result
     
