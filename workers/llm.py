@@ -64,15 +64,20 @@ logger=logging.getLogger(__name__)
         wait=wait_exponential(multiplier=1,min=2,max=30),
         stop=stop_after_attempt(4),
     )
+
 def run_llm_review(parsed_files:list[dict])-> list[dict]:
     if is_trivial_diff(parsed_files):
         logger.info("Skipping LLM review -trivial diff")
         return []
-
-    diff_text, was_truncated= truncate_diff(parsed_files) 
+    
+      
+    diff_text, was_truncated= truncate_diff(parsed_files)
+    if len(diff_text) > 4000:
+        diff_text = diff_text[:4000] 
     if was_truncated:
         logger.info("Diff truncated before LLM review")
     logger.info("Using API key: %s", settings.llm_api_key[:15])
+    print(settings.model_dump())
     response=httpx.post(
         GROQ_API_URL,
         headers={"Authorization": f"Bearer {settings.llm_api_key}"},

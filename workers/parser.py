@@ -10,7 +10,7 @@ def parse_diff(raw_diff: str) -> list[dict]:
         if patched_file.is_removed_file:
             continue
 
-        # skip non-python files for now
+        # skipping non-python files for now
         if not patched_file.path.endswith(".py"):
             continue
 

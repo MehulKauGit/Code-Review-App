@@ -1,7 +1,7 @@
 from celery import Celery
 from api.config import settings
 
-celery_app=Celery("code_reivew",broker=settings.redis_url,backend=settings.redis_url)
+celery_app=Celery("code_review",broker=settings.redis_url,backend=settings.redis_url)
 
 celery_app.conf.update(
     task_serializer="json",
@@ -13,6 +13,7 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,
     task_routes={
         "workers.tasks.run_review":{"queue":"parse"},
+        "workers.llm.run_llm_review":{"queue":"llm"}
     },
     )
 

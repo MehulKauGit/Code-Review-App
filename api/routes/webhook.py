@@ -31,7 +31,6 @@ logger=structlog.get_logger()
 router =APIRouter(prefix="/webhook",tags=["webhook"])
 
 @router.post("/github",status_code=202)
-
 async def github_webhook(
     request:Request,
     x_github_event: str | None=Header(None),
@@ -68,7 +67,7 @@ async def github_webhook(
             "diff_url":event.pull_request.diff_url,
             "repo":event.repository.full_name,
             "commit_sha":event.pull_request.head.sha,
-            "pr_number":event.number,  
+            "pull_number":event.number,  
         },
         task_id=job_id,
     )
