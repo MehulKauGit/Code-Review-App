@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     github_webhook_secret:str
     redis_url:str="redis://localhost:6379/0"
+    database_url: str
     llm_api_key:str
     llm_model: str = "openai/gpt-oss-120b"
     debug: bool =False
