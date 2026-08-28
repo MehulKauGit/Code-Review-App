@@ -3,17 +3,24 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.config import settings
+from api.limiter import RateLimiter
 from api.models.review import ReviewRequest, ReviewResponse, JobStatus
 from api.models.review import ReviewResult
-from api.deps import get_db
+from api.deps import get_db, verify_api_key
 from api.models.db import Job, Finding
 from workers.tasks import run_review
 
-router = APIRouter(prefix="/review", tags=["review"])
+router = APIRouter(prefix="/review", tags=["review"], dependencies=[Depends(verify_api_key)])
+review_limiter = RateLimiter(
+    times=settings.rate_limit_review_max,
+    seconds=settings.rate_limit_review_window_seconds,
+)
 
 
-@router.post("", response_model=ReviewResponse, status_code=202)
+@router.post("", response_model=ReviewResponse, status_code=202, dependencies=[Depends(review_limiter)])
 async def submit_review(payload: ReviewRequest, db: AsyncSession = Depends(get_db)) -> ReviewResponse:
+
     # Idempotency: same commit_sha with a completed job -> return cached job_id
     if payload.commit_sha:
         result = await db.execute(

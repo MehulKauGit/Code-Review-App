@@ -9,9 +9,14 @@ class Settings(BaseSettings):
     llm_model: str = "openai/gpt-oss-120b"
     debug: bool =False
     app_name: str = "My API"
+    api_key: str = "dev-api-key"
+    rate_limit_review_max: int = 10
+    rate_limit_review_window_seconds: int = 60
     github_app_id: int
     github_app_installation_id: str
     github_app_private_key_path: str
+
+
 
     model_config= SettingsConfigDict(
         env_file=".env",

@@ -15,7 +15,8 @@ async def mock_get_db():
     yield mock_session
 
 app.dependency_overrides[get_db] = mock_get_db
-client = TestClient(app)
+client = TestClient(app, headers={"X-API-Key": "dev-api-key"})
+
 
 def test_review_rejects_empty_payload():
     r = client.post("/review", json={})
