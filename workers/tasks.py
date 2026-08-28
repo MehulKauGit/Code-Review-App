@@ -7,7 +7,7 @@ from workers.celery_app import celery_app
 from workers.static import run_ruff, run_bandit, run_semgrep
 from workers.aggregator import aggregate_findings
 from workers.llm import run_llm_review
-from workers.github_poster import create_check_run, complete_check_run, post_inline_comments, post_summary_comment
+from workers.github_poster import create_check_run, complete_check_run, post_pr_comment
 from api.database import AsyncSessionLocal
 from api.models.db import Job, Finding, JobStatus
 
@@ -119,8 +119,7 @@ def run_review(
 
             complete_check_run(repo, check_run_id, conclusion, summary_text)
             if pull_number:
-                post_inline_comments(repo, pull_number, commit_sha, findings)
-                post_summary_comment(repo, pull_number, summary, total)
+                post_pr_comment(repo, pull_number, findings, summary, total)
 
         asyncio.run(_complete_job(job_id, result.get("findings", [])))
         return result

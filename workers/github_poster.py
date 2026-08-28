@@ -43,37 +43,24 @@ def complete_check_run(repo:str,check_run_id: int,conclusion: str,summary: str)-
     )
     response.raise_for_status()
 
-def post_inline_comments(repo: str, pull_number: int, commit_sha: str, findings: list) -> None:
-    headers = get_headers()
-    for finding in findings:
-        if not finding.get("line"):
+def post_pr_comment(repo: str, pull_number: int, findings: list, summary: dict, total: int) -> None:
+    lines = ["## Code Review Bot Results\n"]
+    
+    for severity in ["critical", "high", "medium", "low"]:
+        severity_findings = [f for f in findings if f["severity"] == severity]
+        if not severity_findings:
             continue
-        body = f"**[{finding['severity'].upper()}] {finding['type']}**\n\n{finding['message']}"
-        if finding.get("suggestion"):
-            body += f"\n\n💡 {finding['suggestion']}"
-        httpx.post(
-            f"{BASE}/repos/{repo}/pulls/{pull_number}/comments",
-            headers=headers,
-            json={
-                "body": body,
-                "commit_id": commit_sha,
-                "path": finding["file"],
-                "line": finding["line"],
-            },
-            follow_redirects=True
-        ).raise_for_status()
+        lines.append(f"### {severity.upper()}")
+        for f in severity_findings:
+            lines.append(f"- **{f['file']} line {f['line']}** — {f['message']}")
+            if f.get("suggestion"):
+                lines.append(f"  - 💡 {f['suggestion']}")
+        lines.append("")
 
-def post_summary_comment(repo: str, pull_number: int, summary: dict, total: int) -> None:
-    lines = ["## Code Review Bot Summary\n"]
-    for severity, count in summary.items():
-        lines.append(f"- **{severity}:** {count}")
-    lines.append(f"\n**Total findings: {total}**")
-    body = "\n".join(lines)
+    lines.append(f"**Total: {total} findings** — " + ", ".join(f"{v} {k}" for k,v in summary.items() if v))
 
     httpx.post(
         f"{BASE}/repos/{repo}/issues/{pull_number}/comments",
         headers=get_headers(),
-        json={"body": body},
-        follow_redirects=True,
+        json={"body": "\n".join(lines)},
     ).raise_for_status()
-
