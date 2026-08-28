@@ -37,10 +37,12 @@ async def github_webhook(
     x_hub_signature_256: str | None=Header(None),
     x_github_delivery: str | None=Header(None),)->dict:
 
-    raw_body=await request.body()
-    #step 1 - verify before anything else
+    raw_body = await request.body()
+    # step 1 - verify before anything else
+    verify_github_signature(raw_body, x_hub_signature_256)
 
-    log =logger.bind(event=x_github_event,delivery=x_github_delivery)
+    log = logger.bind(event=x_github_event, delivery=x_github_delivery)
+
 
     #step 2 - filter event type
     if x_github_event!=  "pull_request":
