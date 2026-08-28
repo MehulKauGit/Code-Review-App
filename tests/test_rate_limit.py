@@ -2,7 +2,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from api.main import create_app
 from api.deps import get_db
-from api.limiter import RateLimiter
 import api.routes.review as review_route
 
 app = create_app()

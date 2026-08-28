@@ -3,7 +3,6 @@ from datetime import datetime
 import httpx
 from celery import shared_task
 from workers.parser import parse_diff
-from workers.celery_app import celery_app
 from workers.static import run_ruff, run_bandit, run_semgrep
 from workers.aggregator import aggregate_findings
 from workers.llm import run_llm_review

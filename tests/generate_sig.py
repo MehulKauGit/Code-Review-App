@@ -1,5 +1,7 @@
 # generate_sig.py — run this once to get a test signature
-import hashlib, hmac, json
+import hashlib
+import hmac
+import json
 
 secret = "dev-secret"
 payload = json.dumps({

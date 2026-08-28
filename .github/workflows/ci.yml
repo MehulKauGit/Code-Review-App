@@ -1,0 +1,63 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  quality-and-test:
+    name: Code Quality & Automated Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Astral uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run Ruff Lint Check
+        run: uv run ruff check .
+
+      - name: Run Pytest Test Suite
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          REDIS_URL: redis://localhost:6379/0
+          GITHUB_WEBHOOK_SECRET: test-webhook-secret
+          LLM_API_KEY: test-llm-key
+          API_KEY: dev-api-key
+          GITHUB_APP_ID: 12345
+          GITHUB_APP_INSTALLATION_ID: 67890
+          GITHUB_APP_PRIVATE_KEY_PATH: test.pem
+        run: uv run pytest tests/ -v
+
+  docker-build:
+    name: Multi-stage Docker Build Verification
+    runs-on: ubuntu-latest
+    needs: quality-and-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: code-review-app:ci

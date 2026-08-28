@@ -1,5 +1,5 @@
 import jwt
-from datetime import datetime,timedelta,timezone 
+from datetime import datetime,timezone 
 import httpx
 from api.config import settings
 
