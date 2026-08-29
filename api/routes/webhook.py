@@ -55,21 +55,28 @@ async def github_webhook(
         log.info("webhook.ping_received")
         return {"status": "ok", "message": "pong"}
 
-    # step 3 - handle check_suite / check_run re-request events
+    # step 3 - handle check_suite / check_run / push events
     if x_github_event in ("check_suite", "check_run"):
         try:
             payload = json.loads(raw_body)
             action = payload.get("action", "")
-            if action in ("requested", "rerequested"):
+            if action in ("requested", "rerequested", ""):
                 check_obj = payload.get("check_suite") or payload.get("check_run", {}).get("check_suite", {})
                 pull_requests = check_obj.get("pull_requests", [])
                 repo_full_name = payload.get("repository", {}).get("full_name", "")
                 head_sha = check_obj.get("head_sha") or payload.get("check_run", {}).get("head_sha", "")
 
-                if pull_requests and repo_full_name and head_sha:
-                    pr = pull_requests[0]
-                    pr_number = pr.get("number")
-                    diff_url = f"https://github.com/{repo_full_name}/pull/{pr_number}.diff"
+                if not head_sha:
+                    head_sha = payload.get("check_run", {}).get("head_sha") or payload.get("check_suite", {}).get("head_sha", "")
+
+                if repo_full_name and head_sha:
+                    if pull_requests:
+                        pr_number = pull_requests[0].get("number")
+                        diff_url = f"https://github.com/{repo_full_name}/pull/{pr_number}.diff"
+                    else:
+                        pr_number = None
+                        diff_url = f"https://github.com/{repo_full_name}/commit/{head_sha}.diff"
+
                     job_id = str(uuid.uuid4())
                     run_review.apply_async(
                         kwargs={
@@ -81,7 +88,7 @@ async def github_webhook(
                         },
                         task_id=job_id,
                     )
-                    log.info("webhook.check_suite.queued", job_id=job_id, repo=repo_full_name, pr=pr_number)
+                    log.info("webhook.check_suite.queued", job_id=job_id, repo=repo_full_name, pr=pr_number, commit=head_sha)
                     return {"status": "queued", "job_id": job_id, "event": x_github_event}
 
             log.info("webhook.check_suite.ignored", action=action)
@@ -89,6 +96,32 @@ async def github_webhook(
         except Exception as exc:
             log.warning("webhook.check_suite_error", error=str(exc))
             return {"status": "ignored", "reason": f"could not process {x_github_event}"}
+
+    if x_github_event == "push":
+        try:
+            payload = json.loads(raw_body)
+            repo_full_name = payload.get("repository", {}).get("full_name", "")
+            head_sha = payload.get("after") or payload.get("head_commit", {}).get("id", "")
+
+            # Ignore delete branch events (after=0000000000000000000000000000000000000000)
+            if repo_full_name and head_sha and head_sha != "0" * 40:
+                diff_url = f"https://github.com/{repo_full_name}/commit/{head_sha}.diff"
+                job_id = str(uuid.uuid4())
+                run_review.apply_async(
+                    kwargs={
+                        "job_id": job_id,
+                        "diff_url": diff_url,
+                        "repo": repo_full_name,
+                        "commit_sha": head_sha,
+                        "pull_number": None,
+                    },
+                    task_id=job_id,
+                )
+                log.info("webhook.push.queued", job_id=job_id, repo=repo_full_name, commit=head_sha)
+                return {"status": "queued", "job_id": job_id, "event": "push"}
+        except Exception as exc:
+            log.warning("webhook.push_error", error=str(exc))
+
 
     if x_github_event != "pull_request":
         log.info("webhook.ignored", reason=f"unsupported event: {x_github_event}")
