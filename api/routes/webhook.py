@@ -27,15 +27,20 @@ def verify_github_signature(payload:bytes,sig_header:str | None)->None:
         raise HTTPException(status_code=401, detail="Invalid signature.")
     
 
-logger=structlog.get_logger()
-router =APIRouter(prefix="/webhook",tags=["webhook"])
+logger = structlog.get_logger()
+router = APIRouter(prefix="/webhook", tags=["webhook"])
 
-@router.post("/github",status_code=202)
+
+@router.post("", status_code=202)
+@router.post("/", status_code=202)
+@router.post("/github", status_code=202)
 async def github_webhook(
-    request:Request,
-    x_github_event: str | None=Header(None),
-    x_hub_signature_256: str | None=Header(None),
-    x_github_delivery: str | None=Header(None),)->dict:
+    request: Request,
+    x_github_event: str | None = Header(None),
+    x_hub_signature_256: str | None = Header(None),
+    x_github_delivery: str | None = Header(None),
+) -> dict:
+
 
     raw_body = await request.body()
     # step 1 - verify before anything else

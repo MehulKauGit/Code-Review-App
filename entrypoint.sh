@@ -7,8 +7,9 @@ alembic upgrade head || {
 }
 
 echo "=== [2/3] Starting Celery Background Worker ==="
-celery -A workers.celery_app worker --loglevel=info --concurrency=2 &
+celery -A workers.celery_app worker --loglevel=info --concurrency=2 -Q celery,parse,llm &
 CELERY_PID=$!
+
 
 # Trap signals for graceful shutdown of background worker
 cleanup() {
