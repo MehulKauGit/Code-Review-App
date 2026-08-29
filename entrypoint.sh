@@ -17,7 +17,8 @@ cleanup() {
     wait "$CELERY_PID" 2>/dev/null || true
     exit 0
 }
-trap cleanup SIGTERM SIGINT
+trap cleanup TERM INT
+
 
 echo "=== [3/3] Starting FastAPI (Uvicorn) on port ${PORT:-8000} ==="
 uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}" &
