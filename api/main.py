@@ -2,7 +2,8 @@ from contextlib import asynccontextmanager
 import structlog
 import redis.asyncio as aioredis
 from sqlalchemy import text
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Request, Response, status
+
 from api.config import settings
 from api.database import AsyncSessionLocal
 from api.routes import review, webhook
@@ -74,7 +75,18 @@ def create_app() -> FastAPI:
     app.include_router(review.router)
     app.include_router(webhook.router)
 
+    # Route fallback: also accept webhooks posted to root /
+    @app.post("/", status_code=202, tags=["webhook"], include_in_schema=False)
+    async def root_webhook_fallback(request: Request):
+        return await webhook.github_webhook(
+            request=request,
+            x_github_event=request.headers.get("x-github-event"),
+            x_hub_signature_256=request.headers.get("x-hub-signature-256"),
+            x_github_delivery=request.headers.get("x-github-delivery"),
+        )
+
     return app
+
 
 
 app = create_app()
