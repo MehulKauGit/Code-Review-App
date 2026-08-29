@@ -39,7 +39,9 @@ COPY --from=builder /app/entrypoint.sh ./entrypoint.sh
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    C_FORCE_ROOT=1
+
 
 RUN uv sync --frozen --no-dev && chmod +x /app/entrypoint.sh
 

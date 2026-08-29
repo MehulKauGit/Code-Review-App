@@ -49,10 +49,15 @@ async def github_webhook(
     log = logger.bind(event=x_github_event, delivery=x_github_delivery)
 
 
-    #step 2 - filter event type
-    if x_github_event!=  "pull_request":
-        log.info("webhook.ignored",reason="unsupported event")
-        return {"status":"ignored","reason":f"event'{x_github_event}' not handled"}
+    # step 2 - filter event type
+    if x_github_event == "ping":
+        log.info("webhook.ping_received")
+        return {"status": "ok", "message": "pong"}
+
+    if x_github_event != "pull_request":
+        log.info("webhook.ignored", reason=f"unsupported event: {x_github_event}")
+        return {"status": "ignored", "reason": f"event '{x_github_event}' not handled"}
+
     
     #step 3 - parse payload
     try:

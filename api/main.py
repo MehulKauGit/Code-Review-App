@@ -48,12 +48,24 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    @app.get("/", tags=["system"])
+    @app.head("/", tags=["system"])
+    async def root():
+        return {
+            "status": "ok",
+            "message": "Code Review App API is running",
+            "health": "/health",
+            "ready": "/ready",
+        }
+
     @app.get("/health", tags=["system"])
+    @app.head("/health", tags=["system"])
     async def health():
         return {
             "status": "ok",
             "version": "0.1.0",
         }
+
 
     @app.get("/ready", tags=["system"])
     async def readiness(response: Response):
