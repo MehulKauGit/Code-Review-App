@@ -12,9 +12,11 @@ class Settings(BaseSettings):
     api_key: str = "dev-api-key"
     rate_limit_review_max: int = 10
     rate_limit_review_window_seconds: int = 60
-    github_app_id: int
-    github_app_installation_id: str
-    github_app_private_key_path: str
+    github_app_id: int = 0
+    github_app_installation_id: str = ""
+    github_app_private_key_path: str = ""
+    github_app_private_key: str = ""
+
 
 
 

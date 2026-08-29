@@ -5,9 +5,16 @@ from api.config import settings
 
 
 def create_jwt()->str:
-    with open(settings.github_app_private_key_path,"r") as f:
-        private_key=f.read()
-    now=int(datetime.now(timezone.utc).timestamp())
+    if settings.github_app_private_key:
+        private_key = settings.github_app_private_key.replace("\\n", "\n")
+    elif settings.github_app_private_key_path:
+        with open(settings.github_app_private_key_path, "r") as f:
+            private_key = f.read()
+    else:
+        raise ValueError("Neither GITHUB_APP_PRIVATE_KEY nor GITHUB_APP_PRIVATE_KEY_PATH is configured")
+
+    now = int(datetime.now(timezone.utc).timestamp())
+
     payload={
         "iat":now-60,
         "exp":now + 540,
