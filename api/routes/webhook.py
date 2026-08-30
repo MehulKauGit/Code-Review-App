@@ -91,11 +91,13 @@ async def github_webhook(
                     log.info("webhook.check_suite.queued", job_id=job_id, repo=repo_full_name, pr=pr_number, commit=head_sha)
                     return {"status": "queued", "job_id": job_id, "event": x_github_event}
 
-            log.info("webhook.check_suite.ignored", action=action)
-            return {"status": "ignored", "reason": f"{x_github_event} action '{action}' skipped"}
+            log.warning("webhook.check_suite.no_data", repo=repo_full_name, sha=head_sha)
+            return {"status": "ignored", "reason": f"{x_github_event} action '{action}' - missing repo or sha"}
+
         except Exception as exc:
-            log.warning("webhook.check_suite_error", error=str(exc))
-            return {"status": "ignored", "reason": f"could not process {x_github_event}"}
+            log.warning("webhook.check_suite_error", error=str(exc), exc_type=type(exc).__name__)
+            return {"status": "error", "reason": f"could not process {x_github_event}", "detail": str(exc)}
+
 
     if x_github_event == "push":
         try:
