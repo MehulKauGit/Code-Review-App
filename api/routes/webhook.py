@@ -10,18 +10,25 @@ from api.models.webhook import PullRequestEvent, SUPPORTED_PR_ACTIONS
 from api.config import settings
 from workers.tasks import run_review
 
-def verify_github_signature(payload:bytes,sig_header:str | None)->None:
+def verify_github_signature(payload: bytes, sig_header: str | None) -> None:
     if not sig_header:
-        raise HTTPException(status_code=401,detail="Missing signature header.")
-    
+        raise HTTPException(status_code=401, detail="Missing signature header.")
+
     if not sig_header.startswith("sha256="):
-        raise HTTPException(status_code=401,detail="Malformed signature.")
-    
-    expected=hmac.new(
+        raise HTTPException(status_code=401, detail="Malformed signature.")
+
+    if not settings.github_webhook_secret:
+        raise HTTPException(
+            status_code=500,
+            detail="Server configuration error: GITHUB_WEBHOOK_SECRET is not set in environment variables.",
+        )
+
+    expected = hmac.new(
         settings.github_webhook_secret.encode(),
         payload,
         hashlib.sha256,
     ).hexdigest()
+
 
     received =sig_header[len("sha256="):]
     if not hmac.compare_digest(expected,received):

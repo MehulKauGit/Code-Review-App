@@ -3,6 +3,8 @@ import structlog
 import redis.asyncio as aioredis
 from sqlalchemy import text
 from fastapi import FastAPI, Request, Response, status
+from fastapi.responses import JSONResponse
+
 
 from api.config import settings
 from api.database import AsyncSessionLocal
@@ -97,7 +99,24 @@ def create_app() -> FastAPI:
             x_github_delivery=request.headers.get("x-github-delivery"),
         )
 
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("unhandled_server_error", path=request.url.path, error=str(exc), error_type=type(exc).__name__, traceback=tb)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "error_type": type(exc).__name__,
+                "detail": str(exc),
+                "path": request.url.path,
+                "traceback": tb.splitlines()[-6:],
+            },
+        )
+
     return app
+
 
 
 
